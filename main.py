@@ -11,8 +11,6 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain.prompts.few_shot import FewShotChatMessagePromptTemplate
-
-# Importando sua lista de ferramentas do arquivo tools.py
 from tools import TOOLS
 
 # =====================================
@@ -59,19 +57,15 @@ def carregar_badwords(caminho="badwords.txt"):
 BAD_WORDS = carregar_badwords()
 
 # =====================================
-# PROMPTS DE NÍVEL PROFISSIONAL (COM CORREÇÃO)
+# PROMPTS
 # =====================================
-
-# 1. Roteador: O Porteiro Inteligente
-# =====================================
-
 
 example_prompt_base = ChatPromptTemplate.from_messages([
     HumanMessagePromptTemplate.from_template("{human}"),
     AIMessagePromptTemplate.from_template("{ai}"),
 ])
 
-# 1. Roteador: O Porteiro Inteligente
+# 1. Roteador
 PERSONA_SISTEMA_GAIA = """Você é a Gaia — uma assistente IA especialista em sustentabilidade e análise de dados de carbono. Você é objetiva, confiável e empática, com foco em ajudar o usuário a entender e reduzir seu impacto ambiental.
 - Evite jargões.
 """
@@ -110,32 +104,26 @@ PERSONA=<copie a PERSONA SISTEMA daqui>
 )
 
 shots_roteador = [
-    # 1) Saudação -> resposta direta (diversa)
     {
         "human": "Oi, tudo bem?",
         "ai": "Olá! Sou a Gaia 🌿. Prontos para analisar alguns dados de sustentabilidade hoje?"
     },
-    # 2) Fora de escopo -> recusar e redirecionar (diverso)
     {
         "human": "Qual a previsão do tempo?",
         "ai": "Meu foco é 100% em sustentabilidade. Posso ajudar analisando a média de emissão da equipe ou dando dicas de CO2. O que prefere?"
     },
-    # 3) Diagnóstico (com ferramentas) -> encaminhar
     {
         "human": "Qual a média de emissão do time?",
         "ai": f"ROUTE=diagnostico\nPERGUNTA_ORIGINAL=Qual a média de emissão do meu formulário?\nPERSONA={PERSONA_SISTEMA_GAIA}"
     },
-    # 4) Carbono (sem ferramentas) -> encaminhar
     {
         "human": "O que é pegada de carbono?",
         "ai": f"ROUTE=carbono\nPERGUNTA_ORIGINAL=O que é pegada de carbono?\nPERSONA={PERSONA_SISTEMA_GAIA}"
     },
-    # 5) Diagnóstico (individual) -> encaminhar
     {
         "human": "Me dá os dados do crachá 123.",
         "ai": f"ROUTE=diagnostico\nPERGUNTA_ORIGINAL=Me dá os dados do crachá 123.\nPERSONA={PERSONA_SISTEMA_GAIA}"
     },
-    # 6) Saudação (variação) -> resposta direta
     {
         "human": "Bom dia",
         "ai": "Bom dia! 💡 Sobre o que vamos conversar hoje: análise de dados ou dicas de sustentabilidade?"
@@ -154,7 +142,7 @@ prompt_roteador = ChatPromptTemplate.from_messages([
     ("human", "{input}"),
 ]).partial(persona=PERSONA_SISTEMA_GAIA)
 
-# 2. Especialista de Carbono: O Sábio Focado
+# 2. Especialista de Carbono
 system_prompt_carbono = ("system",
 """
 ### PAPEL
@@ -200,7 +188,7 @@ shots_carbono = [
 }"""
     },
     {
-        "human": "Qual a média de emissão da minha equipe?", # Pergunta que deveria ser para Diagnóstico
+        "human": "Qual a média de emissão da minha equipe?", 
         "ai": """{
   "dominio": "carbono",
   "intencao": "informar",
@@ -217,12 +205,12 @@ fewshots_carbono = FewShotChatMessagePromptTemplate(
 
 prompt_carbono = ChatPromptTemplate.from_messages([
     system_prompt_carbono,
-    MessagesPlaceholder(variable_name="chat_history"), # Histórico primeiro
-    fewshots_carbono, # Depois os exemplos
-    ("human", "{input}"), # Finalmente a pergunta atual
+    MessagesPlaceholder(variable_name="chat_history"),
+    fewshots_carbono,
+    ("human", "{input}"), 
 ])
 
-# 3. Agente de Diagnóstico: O Analista Sênior
+# 3. Agente de Diagnóstico
 system_prompt_diag = ("system",
 """
 ### PAPEL
@@ -258,18 +246,17 @@ Você é um Analista de Dados Sênior, especialista em sustentabilidade. Sua mis
 """
 )
 
-# Nota: Os shots para agentes com tools são mais complexos e geralmente
-# são gerenciados internamente pelo `create_tool_calling_agent`.
-# Mas podemos adicionar o prompt de sistema assim mesmo.
+
 prompt_diag = ChatPromptTemplate.from_messages([
-    system_prompt_diag, # O prompt de sistema já é muito forte
+    system_prompt_diag, 
     MessagesPlaceholder(variable_name="chat_history"),
     ("human", "{input}"),
     MessagesPlaceholder(variable_name="agent_scratchpad")
 ]).partial(today=today.isoformat())
 
 
-# 4. Orquestrador: A Voz Empática da Gaia
+# 4. Orquestrador
+
 system_prompt_orq = ("system",
 """
 ### PAPEL
@@ -346,7 +333,7 @@ prompt_orq = ChatPromptTemplate.from_messages([
 # =====================================
 # AGENTES E CADEIAS
 # =====================================
-# Roteador (agora com histórico)
+# Roteador
 router_chain = RunnableWithMessageHistory(
     prompt_roteador | llm_fast | StrOutputParser(),
     get_session_history,
@@ -354,7 +341,7 @@ router_chain = RunnableWithMessageHistory(
     history_messages_key="chat_history",
 )
 
-# Especialista Carbono (com histórico)
+# Especialista Carbono
 carbono_chain = RunnableWithMessageHistory(
     prompt_carbono | llm_fast | StrOutputParser(),
     get_session_history,
@@ -362,7 +349,7 @@ carbono_chain = RunnableWithMessageHistory(
     history_messages_key="chat_history",
 )
 
-# Agente Diagnóstico (já tinha histórico, está correto)
+# Agente Diagnóstico
 diag_agente = create_tool_calling_agent(llm, TOOLS, prompt_diag)
 diag_exec = AgentExecutor(agent=diag_agente, tools=TOOLS, verbose=True)
 diag_chain = RunnableWithMessageHistory(
@@ -372,7 +359,7 @@ diag_chain = RunnableWithMessageHistory(
     history_messages_key="chat_history",
 )
 
-# Orquestrador (com histórico)
+# Orquestrador 
 orquestrador_chain = RunnableWithMessageHistory(
     prompt_orq | llm_fast | StrOutputParser(),
     get_session_history,
@@ -383,6 +370,7 @@ orquestrador_chain = RunnableWithMessageHistory(
 # =====================================
 # EXECUÇÃO DO FLUXO
 # =====================================
+
 def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
     if any(word in pergunta_usuario.lower() for word in BAD_WORDS):
         return "Por favor, vamos manter a conversa respeitosa e focada em sustentabilidade. 🌿"
@@ -390,23 +378,18 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
     config = {"configurable": {"session_id": session_id}}
     chat_history = get_session_history(session_id)
 
-    # 1. Invoca o Roteador
     resposta_roteador = router_chain.invoke({"input": pergunta_usuario}, config=config).strip()
     print(f"[DEBUG] Roteador retornou:\n{resposta_roteador}\n")
 
     resposta_final = ""
 
-    # 2. Verifica se é Resposta Direta (Saudação / Fora de Escopo)
-    # Se NÃO começar com "ROUTE=", é uma resposta direta do LLM.
     if not resposta_roteador.startswith("ROUTE="):
         print("[DEBUG] Rota de Resposta Direta (Saudação/Fora de Escopo).")
         resposta_final = resposta_roteador
     
-    # 3. Se for Protocolo, encaminha para o Especialista
     else:
         print("[DEBUG] Rota de Especialista (Diagnóstico/Carbono).")
         
-        # Parse do protocolo
         route_info = {}
         for line in resposta_roteador.split("\n"):
             if "=" in line:
@@ -415,14 +398,14 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
                     route_info[partes[0].strip()] = partes[1].strip()
 
         route = route_info.get("ROUTE", "fora_de_escopo")
-        especialista_input = route_info.get("PERGUNTA_ORIGINAL", pergunta_usuario) # Passa a pergunta original
+        especialista_input = route_info.get("PERGUNTA_ORIGINAL", pergunta_usuario)
 
         json_especialista = ""
         
         if route == "carbono":
             print(f"[DEBUG] Chamando especialista CARBONO...")
             json_especialista = carbono_chain.invoke(
-                {"input": especialista_input}, # Passa só a pergunta original
+                {"input": especialista_input},
                 config=config
             )
             print(f"[DEBUG] Especialista CARBONO respondeu:\n{json_especialista}")
@@ -430,28 +413,21 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
         elif route == "diagnostico":
             print(f"[DEBUG] Chamando AGENTE DE DIAGNÓSTICO...")
             resposta_agente = diag_chain.invoke(
-                {"input": especialista_input}, # Passa só a pergunta original
+                {"input": especialista_input},
                 config=config
             )
             json_especialista = resposta_agente['output']
             print(f"[DEBUG] Agente DIAGNÓSTICO respondeu:\n{json_especialista}")
         
         else:
-            # Fallback caso o roteador envie "ROUTE=saudacao" (o que não deve acontecer)
             print(f"[DEBUG] Rota '{route}' inesperada no protocolo. Usando fallback.")
             resposta_final = "Sou a Gaia e meu dever é ajudar com sustentabilidade. Como posso te ajudar com isso? 🌿"
 
-        # 4. Orquestração (Apenas se passou por um especialista)
         if json_especialista and not resposta_final:
             resposta_final = orquestrador_chain.invoke(
-                {"input": json_especialista}, # Passa o JSON para o orquestrador
+                {"input": json_especialista},
                 config=config
             )
-
-    # Adiciona ao histórico DEPOIS de ter a resposta final
-    # O RunnableWithMessageHistory já faz isso, mas podemos fazer manualmente
-    # se quiséssemos mais controle. Por agora, vamos confiar nele.
-    # (Nota: O código original adicionava manualmente, vamos manter)
     chat_history.add_user_message(pergunta_usuario)
     chat_history.add_ai_message(resposta_final)
     
@@ -460,6 +436,7 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
 # =====================================
 # LOOP INTERATIVO
 # =====================================
+
 print("🌿 Gaia iniciada (versão profissional com Few-Shots). Diga 'sair' para encerrar.\n")
 SESSION_ID = "sessao_unica"
 
