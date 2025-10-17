@@ -14,7 +14,6 @@ def get_db_connection():
     db = client["dbInterEco"]
     return db
 
-# --- Sua ferramenta original (mantida para consultas individuais) ---
 class QueryFormularioArgs(BaseModel):
     numero_cracha: int = Field(..., description="Número do crachá do funcionário para buscar o formulário respondido.")
 
@@ -30,7 +29,6 @@ def query_formulario_funcionario(numero_cracha: int) -> dict:
             return {"status": "error", "message": f"Nenhum formulário encontrado para o crachá {numero_cracha}"}
         
         respostas = form.get("respostas", [])
-        # Otimização: buscar apenas os IDs de pergunta necessários
         id_perguntas = [r["id_pergunta"] for r in respostas]
         perguntas_dict = {p["_id"]: p for p in db.perguntas.find({"_id": {"$in": id_perguntas}})}
         
@@ -48,12 +46,13 @@ def query_formulario_funcionario(numero_cracha: int) -> dict:
             "status": "ok",
             "numero_cracha": numero_cracha,
             "data_resposta": str(form.get("data_resposta")),
+            "nivel_emissao": form.get("nivel_emissao"),
+            "classificacao_emissao": form.get("classificacao_emissao"),
             "respostas": resultados
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# --- NOVA FERRAMENTA DE ANÁLISE GERAL ---
 @tool("query_resumo_geral_formularios")
 def query_resumo_geral_formularios() -> dict:
     """
