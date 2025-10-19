@@ -1,5 +1,3 @@
-# main.py
-
 from dotenv import load_dotenv
 import os
 from datetime import datetime
@@ -30,6 +28,7 @@ load_dotenv()
 # =====================================
 # MODELOS LLM
 # =====================================
+
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     temperature=0.7,
@@ -46,6 +45,7 @@ llm_fast = ChatGoogleGenerativeAI(
 # =====================================
 # FUNÇÃO DE BADWORDS
 # =====================================
+
 def carregar_badwords(caminho="badwords.txt"):
     try:
         with open(caminho, "r", encoding="utf-8") as f:
@@ -66,6 +66,7 @@ example_prompt_base = ChatPromptTemplate.from_messages([
 ])
 
 # 1. Roteador
+
 PERSONA_SISTEMA_GAIA = """Você é a Gaia — uma assistente IA especialista em sustentabilidade e análise de dados de carbono. Você é objetiva, confiável e empática, com foco em ajudar o usuário a entender e reduzir seu impacto ambiental.
 - Evite jargões.
 """
@@ -143,6 +144,7 @@ prompt_roteador = ChatPromptTemplate.from_messages([
 ]).partial(persona=PERSONA_SISTEMA_GAIA)
 
 # 2. Especialista de Carbono
+
 system_prompt_carbono = ("system",
 """
 ### PAPEL
@@ -211,6 +213,7 @@ prompt_carbono = ChatPromptTemplate.from_messages([
 ])
 
 # 3. Agente de Diagnóstico
+
 system_prompt_diag = ("system",
 """
 ### PAPEL
@@ -253,7 +256,6 @@ prompt_diag = ChatPromptTemplate.from_messages([
     ("human", "{input}"),
     MessagesPlaceholder(variable_name="agent_scratchpad")
 ]).partial(today=today.isoformat())
-
 
 # 4. Orquestrador
 
@@ -330,9 +332,49 @@ prompt_orq = ChatPromptTemplate.from_messages([
     ("human", "{input}")
 ])
 
+# 5. Juiz
+
+system_prompt_juiz = ("system",
+"""
+### PAPEL
+Você é um Juiz de QA (Controle de Qualidade) de IA. Sua função é validar um objeto JSON gerado por um especialista.
+
+### ENTRADA
+1. A `PERGUNTA_ORIGINAL` do usuário.
+2. O `JSON_GERADO` pelo especialista.
+
+### REGRAS DE VALIDAÇÃO
+1.  **Relevância**: O campo `resposta` no JSON responde DIRETAMENTE à `PERGUNTA_ORIGINAL`?
+2.  **Toxidade/Segurança**: O campo `resposta` ou `recomendacao` contém linguagem ofensiva, perigosa, ilegal ou inapropriada?
+3.  **Profissionalismo/Plausibilidade**: A resposta soa profissional? Ela não parece inventada, exagerada ou uma alucinação óbvia? (Ex: "Seu consumo é o pior que já vi!").
+4.  **Formato**: O `JSON_GERADO` é um JSON sintaticamente válido?
+
+### SAÍDA (APENAS O CÓDIGO)
+- Se todas as regras passarem, responda APENAS: "APROVADO"
+- Se QUALQUER regra falhar, responda APENAS com um dos seguintes códigos:
+  - "REPROVADO_RELEVANCIA": Se a regra 1 falhar.
+  - "REPROVADO_TOXICIDADE": Se a regra 2 falhar.
+  - "REPROVADO_ALUCINACAO": Se a regra 3 falhar (inventou fatos, não profissional).
+  - "REPROVADO_FORMATO": Se a regra 4 falhar (JSON quebrado ou inválido).
+""")
+
+prompt_juiz = ChatPromptTemplate.from_messages([
+    system_prompt_juiz,
+    ("human", 
+"""
+### PERGUNTA_ORIGINAL
+{pergunta}
+
+### JSON_GERADO
+{json_output}
+"""
+    )
+])
+
 # =====================================
 # AGENTES E CADEIAS
 # =====================================
+
 # Roteador
 router_chain = RunnableWithMessageHistory(
     prompt_roteador | llm_fast | StrOutputParser(),
@@ -365,6 +407,13 @@ orquestrador_chain = RunnableWithMessageHistory(
     get_session_history,
     input_messages_key="input",
     history_messages_key="chat_history",
+)
+
+# Juiz
+juiz_chain = (
+    prompt_juiz
+    | llm_fast 
+    | StrOutputParser()
 )
 
 # =====================================
@@ -412,11 +461,16 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
 
         elif route == "diagnostico":
             print(f"[DEBUG] Chamando AGENTE DE DIAGNÓSTICO...")
-            resposta_agente = diag_chain.invoke(
-                {"input": especialista_input},
-                config=config
-            )
-            json_especialista = resposta_agente['output']
+            try:
+                resposta_agente = diag_chain.invoke(
+                    {"input": especialista_input},
+                    config=config
+                )
+                json_especialista = resposta_agente.get('output', str(resposta_agente))
+            except Exception as e:
+                print(f"[ERRO] Agente de Diagnóstico falhou: {e}")
+                json_especialista = '{ "dominio": "diagnostico", "intencao": "erro", "resposta": "Ocorreu um erro interno na ferramenta.", "recomendacao": "Tente novamente mais tarde." }'
+            
             print(f"[DEBUG] Agente DIAGNÓSTICO respondeu:\n{json_especialista}")
         
         else:
@@ -424,10 +478,39 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
             resposta_final = "Sou a Gaia e meu dever é ajudar com sustentabilidade. Como posso te ajudar com isso? 🌿"
 
         if json_especialista and not resposta_final:
-            resposta_final = orquestrador_chain.invoke(
-                {"input": json_especialista},
-                config=config
-            )
+            
+            print(f"[DEBUG] Validando JSON com o JUIZ...")
+            validacao_juiz = juiz_chain.invoke({
+                "pergunta": especialista_input,
+                "json_output": json_especialista
+            }).strip()
+            
+            print(f"[DEBUG] Resposta do JUIZ: {validacao_juiz}")
+
+            if validacao_juiz == "APROVADO":
+                print("[DEBUG] JUIZ APROVOU. Chamando Orquestrador.")
+                resposta_final = orquestrador_chain.invoke(
+                    {"input": json_especialista},
+                    config=config
+                )
+            else:
+                print(f"[DEBUG] JUIZ REPROVOU. Código: {validacao_juiz}")
+                
+                if validacao_juiz == "REPROVADO_RELEVANCIA":
+                    resposta_final = "Eu preparei uma resposta, mas notei que ela saiu um pouco do tópico. Você poderia, por favor, reformular sua pergunta? 💡"
+                
+                elif validacao_juiz == "REPROVADO_ALUCINACAO":
+                    resposta_final = "Hmm, não consegui encontrar os dados exatos para sua solicitação nos meus registros. Por favor, verifique sua pergunta (como o número do crachá) e tente novamente. 🌿"
+                
+                elif validacao_juiz == "REPROVADO_TOXICIDADE":
+                    resposta_final = "Ops! A resposta que eu ia te dar não seguiu nossas diretrizes de comunidade. Por favor, tente perguntar de outra forma."
+                
+                elif validacao_juiz == "REPROVADO_FORMATO":
+                    resposta_final = "Tive um problema técnico ao gerar sua resposta (erro de formato). Por favor, tente novamente."
+
+                else:
+                    resposta_final = "Não consegui processar sua solicitação com segurança no momento. Por favor, tente reformular sua pergunta. 💡"
+
     chat_history.add_user_message(pergunta_usuario)
     chat_history.add_ai_message(resposta_final)
     
@@ -450,3 +533,5 @@ while True:
         print(f"\nGaia: {resposta}\n")
     except Exception as e:
         print(f"Ocorreu um erro inesperado: {e}")
+        import traceback
+        traceback.print_exc()
