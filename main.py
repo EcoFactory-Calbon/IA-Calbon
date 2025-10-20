@@ -14,6 +14,7 @@ from tools import TOOLS
 # =====================================
 # BASE
 # =====================================
+
 store = {}
 TZ = ZoneInfo("America/Sao_Paulo")
 today = datetime.now(TZ).date()
@@ -174,29 +175,29 @@ shots_carbono = [
     {
         "human": "O que é pegada de carbono?",
         "ai": """{
-  "dominio": "carbono",
-  "intencao": "informar",
-  "resposta": "Pegada de carbono é o volume total de gases de efeito estufa (GEE) gerados por nossas atividades diárias, medido em toneladas de CO2.",
-  "recomendacao": "Pequenas ações, como reduzir o consumo de carne ou usar menos o carro, ajudam a diminuí-la."
-}"""
+        "dominio": "carbono",
+        "intencao": "informar",
+        "resposta": "Pegada de carbono é o volume total de gases de efeito estufa (GEE) gerados por nossas atividades diárias, medido em toneladas de CO2.",
+        "recomendacao": "Pequenas ações, como reduzir o consumo de carne ou usar menos o carro, ajudam a diminuí-la."
+        }"""
     },
     {
         "human": "Como posso reduzir minha emissão em casa?",
         "ai": """{
-  "dominio": "carbono",
-  "intencao": "informar",
-  "resposta": "Em casa, o foco é reduzir o consumo de energia e a produção de lixo.",
-  "recomendacao": "Tente trocar lâmpadas comuns por LED, desligar aparelhos da tomada e separar seu lixo orgânico para compostagem."
-}"""
+        "dominio": "carbono",
+      "intencao": "informar",
+        "resposta": "Em casa, o foco é reduzir o consumo de energia e a produção de lixo.",
+        "recomendacao": "Tente trocar lâmpadas comuns por LED, desligar aparelhos da tomada e separar seu lixo orgânico para compostagem."
+        }"""
     },
     {
         "human": "Qual a média de emissão da minha equipe?", 
         "ai": """{
-  "dominio": "carbono",
-  "intencao": "informar",
-  "resposta": "Eu forneço informações gerais sobre sustentabilidade. Para analisar dados específicos da sua equipe, você precisa falar com nosso especialista em diagnóstico.",
-  "recomendacao": "Tente perguntar 'qual a média de emissão da empresa?' para o especialista correto."
-}"""
+        "dominio": "carbono",
+        "intencao": "informar",
+        "resposta": "Eu forneço informações gerais sobre sustentabilidade. Para analisar dados específicos da sua equipe, você precisa falar com nosso especialista em diagnóstico.",
+        "recomendacao": "Tente perguntar 'qual a média de emissão da empresa?' para o especialista correto."
+        }"""
     }
 ]
 
@@ -287,36 +288,36 @@ Sugestão: <Sua apresentação da recomendação de forma clara e motivadora>
 shots_orquestrador = [
     {
         "human": """{
-  "dominio": "diagnostico",
-  "intencao": "analisar",
-  "resposta": "Análise do crachá 123: Emissão de 80.5 kgCO2/mês. Principal fonte: Carro a Gasolina (40km/dia).",
-  "recomendacao": "Considere usar o transporte fretado da empresa 2x por semana."
-}""",
+        "dominio": "diagnostico",
+        "intencao": "analisar",
+        "resposta": "Análise do crachá 123: Emissão de 80.5 kgCO2/mês. Principal fonte: Carro a Gasolina (40km/dia).",
+        "recomendacao": "Considere usar o transporte fretado da empresa 2x por semana."
+        }""",
         "ai": """Analisei os dados do crachá 123 e a emissão mensal é de 80.5 kgCO2 💡. A principal fonte é o deslocamento com carro a gasolina, rodando cerca de 40km por dia.
 
-Sugestão: Que tal experimentar o transporte fretado da empresa duas vezes por semana? Isso já faria uma grande diferença! 🌿"""
+        Sugestão: Que tal experimentar o transporte fretado da empresa duas vezes por semana? Isso já faria uma grande diferença! 🌿"""
     },
     {
         "human": """{
-  "dominio": "carbono",
-  "intencao": "informar",
-  "resposta": "Pegada de carbono é o volume total de gases de efeito estufa (GEE) gerados por nossas atividades.",
-  "recomendacao": "Pequenas ações, como reduzir o consumo de carne, ajudam a diminuí-la."
-}""",
+        "dominio": "carbono",
+        "intencao": "informar",
+        "resposta": "Pegada de carbono é o volume total de gases de efeito estufa (GEE) gerados por nossas atividades.",
+        "recomendacao": "Pequenas ações, como reduzir o consumo de carne, ajudam a diminuí-la."
+        }""",
         "ai": """A pegada de carbono é basicamente o volume total de gases de efeito estufa que geramos em nossas atividades do dia a dia. ✨
 
-Sugestão: Pequenas ações já ajudam muito, como diminuir um pouco o consumo de carne vermelha durante a semana! 🌿"""
+        Sugestão: Pequenas ações já ajudam muito, como diminuir um pouco o consumo de carne vermelha durante a semana! 🌿"""
     },
     {
         "human": """{
-  "dominio": "diagnostico",
-  "intencao": "analisar",
-  "resposta": "Erro: Nenhum formulário encontrado para o crachá 999.",
-  "recomendacao": "Por favor, verifique se o número do crachá está correto."
-}""",
+        "dominio": "diagnostico",
+        "intencao": "analisar",
+        "resposta": "Erro: Nenhum formulário encontrado para o crachá 999.",
+        "recomendacao": "Por favor, verifique se o número do crachá está correto."
+        }""",
         "ai": """Hmm, parece que não encontrei nenhum formulário preenchido para o crachá 999.
 
-Sugestão: Você poderia verificar se o número está digitado corretamente, por favor? 💡"""
+        Sugestão: Você poderia verificar se o número está digitado corretamente, por favor? 💡"""
     }
 ]
 
@@ -520,7 +521,7 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
 # LOOP INTERATIVO
 # =====================================
 
-print("🌿 Gaia iniciada (versão profissional com Few-Shots). Diga 'sair' para encerrar.\n")
+print("🌿 Gaia iniciada. Diga 'sair' para encerrar.\n")
 SESSION_ID = "sessao_unica"
 
 while True:
