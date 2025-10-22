@@ -283,14 +283,13 @@ Você receberá um objeto JSON técnico no campo `{input}`.
 ### REGRAS CRÍTICAS
 - **Analise o `chat_history`. Se a conversa já começou (ou seja, se `chat_history` não estiver vazio), NÃO use saudações como "Olá!", "Oi!", etc. Vá direto ao ponto.**
 - Sintetize a "resposta" do JSON em um parágrafo amigável.
-- Apresente a "recomendacao" como uma "Sugestão" prática.
+- **Integre a "recomendacao" de forma fluida e natural no final da sua resposta, como uma dica ou sugestão.**
+- **NÃO use o prefixo "Sugestão:" e NÃO pule uma linha.**
 - Use emojis leves e apropriados (🌿, ✨, 💡).
 - NÃO invente informações. Baseie-se estritamente no JSON recebido.
 
 ### FORMATO DE SAÍDA
-<Sua resposta amigável e elaborada>
-
-Sugestão: <Sua apresentação da recomendação de forma clara e motivadora>
+<Sua resposta amigável e elaborada, já incluindo a recomendação no mesmo parágrafo ou como continuação direta.>
 
 ### HISTÓRICO DA CONVERSA
 {chat_history}
@@ -305,9 +304,7 @@ shots_orquestrador = [
         "resposta": "Análise do crachá 123: Emissão de 80.5 kgCO2/mês. Principal fonte: Carro a Gasolina (40km/dia).",
         "recomendacao": "Considere usar o transporte fretado da empresa 2x por semana."
         }""",
-        "ai": """Analisei os dados do crachá 123 e a emissão mensal é de 80.5 kgCO2 💡. A principal fonte é o deslocamento com carro a gasolina, rodando cerca de 40km por dia.
-
-        Sugestão: Que tal experimentar o transporte fretado da empresa duas vezes por semana? Isso já faria uma grande diferença! 🌿"""
+        "ai": "Analisei os dados do crachá 123 e a emissão mensal é de 80.5 kgCO2 💡. A principal fonte é o deslocamento com carro a gasolina, rodando cerca de 40km por dia. Que tal experimentar o transporte fretado da empresa duas vezes por semana? Isso já faria uma grande diferença! 🌿"
     },
     {
         "human": """{
@@ -316,9 +313,7 @@ shots_orquestrador = [
         "resposta": "Pegada de carbono é o volume total de gases de efeito estufa (GEE) gerados por nossas atividades.",
         "recomendacao": "Pequenas ações, como reduzir o consumo de carne, ajudam a diminuí-la."
         }""",
-        "ai": """A pegada de carbono é basicamente o volume total de gases de efeito estufa que geramos em nossas atividades do dia a dia. ✨
-
-        Sugestão: Pequenas ações já ajudam muito, como diminuir um pouco o consumo de carne vermelha durante a semana! 🌿"""
+        "ai": "A pegada de carbono é basicamente o volume total de gases de efeito estufa que geramos em nossas atividades do dia a dia. ✨ Pequenas ações já ajudam muito, como diminuir um pouco o consumo de carne vermelha durante a semana! 🌿"
     },
     {
         "human": """{
@@ -327,9 +322,7 @@ shots_orquestrador = [
         "resposta": "Erro: Nenhum formulário encontrado para o crachá 999.",
         "recomendacao": "Por favor, verifique se o número do crachá está correto."
         }""",
-        "ai": """Hmm, parece que não encontrei nenhum formulário preenchido para o crachá 999.
-
-        Sugestão: Você poderia verificar se o número está digitado corretamente, por favor? 💡"""
+        "ai": "Hmm, parece que não encontrei nenhum formulário preenchido para o crachá 999. Você poderia verificar se o número está digitado corretamente, por favor? 💡"
     }
 ]
 
@@ -459,9 +452,7 @@ juiz_chain = (
 # FAQ
 faq_chain = (
     RunnablePassthrough.assign(
-        # Pega o 'input' (pergunta original) e passa como 'question'
         question=itemgetter("input"),
-        # Pega o 'input', busca no RAG e passa como 'context'
         context=lambda x: get_faq_context(x["input"])
     )
     | prompt_faq
@@ -481,16 +472,13 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
     chat_history = get_session_history(session_id)
 
     resposta_roteador = router_chain.invoke({"input": pergunta_usuario}, config=config).strip()
-    print(f"[DEBUG] Roteador retornou:\n{resposta_roteador}\n")
 
     resposta_final = "" 
 
     if not resposta_roteador.startswith("ROUTE="):
-        print("[DEBUG] Rota de Resposta Direta (Saudação/Fora de Escopo).")
         resposta_final = resposta_roteador
     
     else:
-        print("[DEBUG] Rota de Especialista (Diagnóstico/Carbono/FAQ).")
         
         route_info = {}
         for line in resposta_roteador.split("\n"):
@@ -506,15 +494,12 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
         json_especialista = "" 
         
         if route == "carbono":
-            print(f"[DEBUG] Chamando especialista CARBONO...")
             json_especialista = carbono_chain.invoke(
                 {"input": especialista_input},
                 config=config
             )
-            print(f"[DEBUG] Especialista CARBONO respondeu:\n{json_especialista}")
 
         elif route == "diagnostico":
-            print(f"[DEBUG] Chamando AGENTE DE DIAGNÓSTICO...")
             try:
                 resposta_agente = diag_chain.invoke(
                     {"input": especialista_input},
@@ -522,44 +507,33 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
                 )
                 json_especialista = resposta_agente.get('output', str(resposta_agente))
             except Exception as e:
-                print(f"[ERRO] Agente de Diagnóstico falhou: {e}")
                 json_especialista = '{ "dominio": "diagnostico", "intencao": "erro", "resposta": "Ocorreu um erro interno na ferramenta.", "recomendacao": "Tente novamente mais tarde." }'
             
-            print(f"[DEBUG] Agente DIAGNÓSTICO respondeu:\n{json_especialista}")
-        
         elif route == "faq":
-            print(f"[DEBUG] Chamando especialista FAQ (RAG)...")
 
             resposta_final = faq_chain.invoke(
                 {"input": especialista_input}
             )
-            print(f"[DEBUG] Especialista FAQ respondeu:\n{resposta_final}")
 
             if not resposta_final or not resposta_final.strip():
                  resposta_final = "Desculpe, não encontrei essa informação no nosso FAQ. 🌿"
 
         else:
-            print(f"[DEBUG] Rota '{route}' inesperada no protocolo. Usando fallback.")
             resposta_final = "Sou a Gaia e meu dever é ajudar com sustentabilidade. Como posso te ajudar com isso? 🌿"
 
         if json_especialista and not resposta_final:
             
-            print(f"[DEBUG] Validando JSON com o JUIZ...")
             validacao_juiz = juiz_chain.invoke({
                 "pergunta": especialista_input,
                 "json_output": json_especialista
             }).strip()
             
-            print(f"[DEBUG] Resposta do JUIZ: {validacao_juiz}")
-
             if validacao_juiz == "APROVADO":
-                print("[DEBUG] JUIZ APROVOU. Chamando Orquestrador.")
                 resposta_final = orquestrador_chain.invoke(
                     {"input": json_especialista},
                     config=config
                 )
             else:
-                print(f"[DEBUG] JUIZ REPROVOU. Código: {validacao_juiz}")
                 
                 if validacao_juiz == "REPROVADO_RELEVANCIA":
                     resposta_final = "Eu preparei uma resposta, mas notei que ela saiu um pouco do tópico. Você poderia, por favor, reformular sua pergunta? 💡"
@@ -581,18 +555,20 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
 # LOOP INTERATIVO
 # =====================================
 
-print("🌿 Gaia iniciada. Diga 'sair' para encerrar.\n")
-SESSION_ID = "sessao_unica"
+def run_local_chat():
+    """Função para executar o chat interativo no terminal."""
+    SESSION_ID = "sessao_unica_local"
+    while True:
+        user_input = input("> ")
+        if user_input.lower() in ["sair", "exit", "quit", "fim", "tchau"]:
+            break
+        try:
+            resposta = executar_fluxo_gaia(user_input, session_id=SESSION_ID)
+            print(f"\nGaia: {resposta}\n")
+        except Exception as e:
+            print(f"Ocorreu um erro inesperado: {e}")
+            import traceback
+            traceback.print_exc()
 
-while True:
-    user_input = input("> ")
-    if user_input.lower() in ["sair", "exit", "quit", "fim", "tchau"]:
-        print("\nGaia: Até logo! 🌿")
-        break
-    try:
-        resposta = executar_fluxo_gaia(user_input, session_id=SESSION_ID)
-        print(f"\nGaia: {resposta}\n")
-    except Exception as e:
-        print(f"Ocorreu um erro inesperado: {e}")
-        import traceback
-        traceback.print_exc()
+if __name__ == "__main__":
+    run_local_chat()
