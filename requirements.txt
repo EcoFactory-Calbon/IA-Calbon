@@ -10,7 +10,6 @@ langchain-mongodb
 langchain
 langchain-core
 langchain-community
-langchain-agents
 
 # LLMs (Google)
 langchain-google-genai
