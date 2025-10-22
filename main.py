@@ -10,6 +10,9 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain.prompts.few_shot import FewShotChatMessagePromptTemplate
 from tools import TOOLS
+from faq_tool import get_faq_context
+from operator import itemgetter
+from langchain_core.runnables import RunnablePassthrough
 
 # =====================================
 # BASE
@@ -66,11 +69,11 @@ example_prompt_base = ChatPromptTemplate.from_messages([
     AIMessagePromptTemplate.from_template("{ai}"),
 ])
 
-# 1. Roteador
-
 PERSONA_SISTEMA_GAIA = """Você é a Gaia — uma assistente IA especialista em sustentabilidade e análise de dados de carbono. Você é objetiva, confiável e empática, com foco em ajudar o usuário a entender e reduzir seu impacto ambiental.
 - Evite jargões.
 """
+
+# 1. Roteador
 
 system_prompt_roteador = ("system",
     """
@@ -79,26 +82,27 @@ system_prompt_roteador = ("system",
 
 ### PAPEL
 - Acolher o usuário e manter o foco em SUSTENTABILIDADE.
-- Decidir a rota: {{diagnostico | carbono}} ou se a pergunta é fora escopo/saudação.
+- Decidir a rota: {{diagnostico | carbono | faq}} ou se a pergunta é fora escopo/saudação.
 - Responder DIRETAMENTE em texto puro para:
   (a) `saudacao`: saudações/small talk.
   (b) `fora_de_escopo`: redirecionando para sustentabilidade.
 - Usar o PROTOCOLO DE ENCAMINHAMENTO para:
   (a) `diagnostico`: Análise de dados, formulários, crachás.
   (b) `carbono`: Dicas, conceitos de CO2, pegada de carbono (sem dados).
+  (c) `faq`: Dúvidas gerais sobre o sistema Gaia, o projeto, ou como funciona.
 
 ### REGRAS
 - Para `saudacao` e `fora_de_escopo`, SEJA AMIGÁVEL e VARIE a resposta.
-- Para `diagnostico` ou `carbono`, NÃO responda ao usuário, use o protocolo.
+- Para `diagnostico`, `carbono` ou `faq`, NÃO responda ao usuário, use o protocolo.
 
 ### PROTOCOLO DE ENCAMINHAMENTO (Texto puro)
-ROUTE=<diagnostico|carbono>
+ROUTE=<diagnostico|carbono|faq>
 PERGUNTA_ORIGINAL=<mensagem completa do usuário, sem edições>
 PERSONA=<copie a PERSONA SISTEMA daqui>
 
 ### SAÍDAS POSSÍVEIS
 - Resposta direta (texto curto) quando saudação ou fora de escopo.
-- Encaminhamento ao especialista (diagnostico/carbono) usando o protocolo.
+- Encaminhamento ao especialista (diagnostico/carbono/faq) usando o protocolo.
 
 ### HISTÓRICO DA CONVERSA
 {chat_history}
@@ -116,7 +120,7 @@ shots_roteador = [
     },
     {
         "human": "Qual a média de emissão do time?",
-        "ai": f"ROUTE=diagnostico\nPERGUNTA_ORIGINAL=Qual a média de emissão do meu formulário?\nPERSONA={PERSONA_SISTEMA_GAIA}"
+        "ai": f"ROUTE=diagnostico\nPERGUNTA_ORIGINAL=Qual a média de emissão do time?\nPERSONA={PERSONA_SISTEMA_GAIA}"
     },
     {
         "human": "O que é pegada de carbono?",
@@ -125,6 +129,14 @@ shots_roteador = [
     {
         "human": "Me dá os dados do crachá 123.",
         "ai": f"ROUTE=diagnostico\nPERGUNTA_ORIGINAL=Me dá os dados do crachá 123.\nPERSONA={PERSONA_SISTEMA_GAIA}"
+    },
+    {
+        "human": "O que é o projeto Gaia?",
+        "ai": f"ROUTE=faq\nPERGUNTA_ORIGINAL=O que é o projeto Gaia?\nPERSONA={PERSONA_SISTEMA_GAIA}"
+    },
+    {
+        "human": "Como meus dados são usados pela Gaia?",
+        "ai": f"ROUTE=faq\nPERGUNTA_ORIGINAL=Como meus dados são usados pela Gaia?\nPERSONA={PERSONA_SISTEMA_GAIA}"
     },
     {
         "human": "Bom dia",
@@ -372,6 +384,33 @@ prompt_juiz = ChatPromptTemplate.from_messages([
     )
 ])
 
+# 6. FAQ
+
+system_prompt_faq = ("system",
+"""
+### PAPEL
+Você é a Gaia, respondendo a perguntas gerais sobre o funcionamento do sistema, o projeto, e políticas de dados, com base EXCLUSIVAMENTE no documento de FAQ fornecido.
+
+### REGRAS
+- Responda APENAS com base nos trechos de CONTEXTO fornecidos.
+- Se a informação não estiver no CONTEXTO, responda: "Desculpe, não encontrei essa informação no nosso FAQ. 🌿"
+- Seja breve, clara e mantenha a persona empática da Gaia.
+- Não invente informações.
+- Não inclua saudações na resposta, vá direto ao ponto.
+
+### ENTRADA
+- Você receberá a pergunta do usuário e o contexto do FAQ.
+"""
+)
+
+prompt_faq = ChatPromptTemplate.from_messages([
+    system_prompt_faq,
+    ("human",
+     "Pergunta do usuário:\n{question}\n\n"
+     "CONTEXTO (trechos do documento FAQ):\n{context}\n\n"
+     "Responda com base APENAS no CONTEXTO.")
+])
+
 # =====================================
 # AGENTES E CADEIAS
 # =====================================
@@ -417,6 +456,19 @@ juiz_chain = (
     | StrOutputParser()
 )
 
+# FAQ
+faq_chain = (
+    RunnablePassthrough.assign(
+        # Pega o 'input' (pergunta original) e passa como 'question'
+        question=itemgetter("input"),
+        # Pega o 'input', busca no RAG e passa como 'context'
+        context=lambda x: get_faq_context(x["input"])
+    )
+    | prompt_faq
+    | llm_fast
+    | StrOutputParser()
+)
+
 # =====================================
 # EXECUÇÃO DO FLUXO
 # =====================================
@@ -431,14 +483,14 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
     resposta_roteador = router_chain.invoke({"input": pergunta_usuario}, config=config).strip()
     print(f"[DEBUG] Roteador retornou:\n{resposta_roteador}\n")
 
-    resposta_final = ""
+    resposta_final = "" 
 
     if not resposta_roteador.startswith("ROUTE="):
         print("[DEBUG] Rota de Resposta Direta (Saudação/Fora de Escopo).")
         resposta_final = resposta_roteador
     
     else:
-        print("[DEBUG] Rota de Especialista (Diagnóstico/Carbono).")
+        print("[DEBUG] Rota de Especialista (Diagnóstico/Carbono/FAQ).")
         
         route_info = {}
         for line in resposta_roteador.split("\n"):
@@ -448,9 +500,10 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
                     route_info[partes[0].strip()] = partes[1].strip()
 
         route = route_info.get("ROUTE", "fora_de_escopo")
+
         especialista_input = route_info.get("PERGUNTA_ORIGINAL", pergunta_usuario)
 
-        json_especialista = ""
+        json_especialista = "" 
         
         if route == "carbono":
             print(f"[DEBUG] Chamando especialista CARBONO...")
@@ -474,6 +527,17 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
             
             print(f"[DEBUG] Agente DIAGNÓSTICO respondeu:\n{json_especialista}")
         
+        elif route == "faq":
+            print(f"[DEBUG] Chamando especialista FAQ (RAG)...")
+
+            resposta_final = faq_chain.invoke(
+                {"input": especialista_input}
+            )
+            print(f"[DEBUG] Especialista FAQ respondeu:\n{resposta_final}")
+
+            if not resposta_final or not resposta_final.strip():
+                 resposta_final = "Desculpe, não encontrei essa informação no nosso FAQ. 🌿"
+
         else:
             print(f"[DEBUG] Rota '{route}' inesperada no protocolo. Usando fallback.")
             resposta_final = "Sou a Gaia e meu dever é ajudar com sustentabilidade. Como posso te ajudar com isso? 🌿"
@@ -499,16 +563,12 @@ def executar_fluxo_gaia(pergunta_usuario: str, session_id: str):
                 
                 if validacao_juiz == "REPROVADO_RELEVANCIA":
                     resposta_final = "Eu preparei uma resposta, mas notei que ela saiu um pouco do tópico. Você poderia, por favor, reformular sua pergunta? 💡"
-                
                 elif validacao_juiz == "REPROVADO_ALUCINACAO":
                     resposta_final = "Hmm, não consegui encontrar os dados exatos para sua solicitação nos meus registros. Por favor, verifique sua pergunta (como o número do crachá) e tente novamente. 🌿"
-                
                 elif validacao_juiz == "REPROVADO_TOXICIDADE":
                     resposta_final = "Ops! A resposta que eu ia te dar não seguiu nossas diretrizes de comunidade. Por favor, tente perguntar de outra forma."
-                
                 elif validacao_juiz == "REPROVADO_FORMATO":
                     resposta_final = "Tive um problema técnico ao gerar sua resposta (erro de formato). Por favor, tente novamente."
-
                 else:
                     resposta_final = "Não consegui processar sua solicitação com segurança no momento. Por favor, tente reformular sua pergunta. 💡"
 

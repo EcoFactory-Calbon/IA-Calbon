@@ -1,47 +1,53 @@
 import os
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
+import pymongo
+from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-PDF_PATH = "GAIA_FAQ.pdf"
+MONGO_URL = os.getenv("MONGO_URL")
+
+DB_NAME = "dbInterEco"
+COLLECTION_NAME = "faq_embeddings"
+INDEX_NAME = "faq_vector_index" 
+
+try:
+    client = pymongo.MongoClient(MONGO_URL)
+    collection = client[DB_NAME][COLLECTION_NAME]
+
+    embeddings_model = GoogleGenerativeAIEmbeddings(
+        model="models/text-embedding-004",
+        google_api_key=os.getenv("GEMINI_API_KEY")
+    )
+
+    vector_store = MongoDBAtlasVectorSearch(
+        collection=collection,
+        embedding=embeddings_model,
+        index_name=INDEX_NAME,
+        text_key="text", 
+        embedding_key="embedding" 
+    )
+except Exception as e:
+    print(f"[faq_tool] ERRO CRÍTICO ao inicializar o Atlas Vector Search: {e}")
+    vector_store = None
+
 
 def get_faq_context(question: str):
     """
-    Busca os trechos mais relevantes do PDF de FAQ com base na pergunta do usuário.
+    Busca os trechos mais relevantes do MongoDB Atlas com base na pergunta do usuário.
     Retorna uma string contendo os trechos mais parecidos.
     """
+    if vector_store is None:
+        print("[faq_tool] Erro: vector_store não foi inicializado.")
+        return ""
+        
     try:
-        # Carrega e processa o PDF em trechos
-        loader = PyPDFLoader(PDF_PATH)
-        docs = loader.load()
-
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=700,
-            chunk_overlap=150
-        )
-        chunks = splitter.split_documents(docs)
-
-        # Gera embeddings (usa variável de ambiente GEMINI_API_KEY)
-        embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/text-embedding-004",
-            google_api_key=os.getenv("GEMINI_API_KEY")
-        )
-
-        # Busca com FAISS
-        db = FAISS.from_documents(chunks, embeddings)
-
-        results = db.similarity_search(question, k=6)
+        results = vector_store.similarity_search(question, k=6)
 
         context_text = "\n\n".join([r.page_content for r in results])
         return context_text
+        
     except Exception as e:
-        # Em caso de qualquer falha (bibliotecas ausentes, PDF não encontrado, etc.),
-        # não propagar a exceção — retorne contexto vazio para que o agente FAQ
-        # possa responder de forma controlada. Logamos o erro para diagnóstico.
         try:
-            # print simples para ajudar em debug local
-            print(f"[faq_tool] erro ao gerar contexto do FAQ: {type(e).__name__}: {e}")
+            print(f"[faq_tool] erro ao buscar contexto do Atlas: {type(e).__name__}: {e}")
         except Exception:
             pass
-        return ""  # contexto vazio indica que não há trecho relevante
+        return ""
