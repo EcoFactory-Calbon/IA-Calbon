@@ -1,12 +1,9 @@
-# api.py
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 import traceback
 
-# --- Importação da Lógica Principal ---
-# Isso agora é seguro, pois o loop de main.py está protegido
-# pelo 'if __name__ == "__main__":'
 try:
     from main import executar_fluxo_gaia, get_session_history, store
 except ImportError as e:
@@ -36,12 +33,12 @@ class ChatRequest(BaseModel):
     question: str = Field(
         ..., 
         description="A pergunta do usuário para a Gaia.",
-        example="Qual a média de emissão da equipe?"
+        example="Qual a melhor forma de diminuir minha emissão de carbono?"
     )
     session_id: str = Field(
         ..., 
         description="Um identificador único para a sessão de chat, para manter o histórico.",
-        example="user_session_abc123"
+        example="session_test"
     )
 
 class ChatResponse(BaseModel):
@@ -49,25 +46,24 @@ class ChatResponse(BaseModel):
     answer: str = Field(
         ..., 
         description="A resposta gerada pela Gaia.",
-        example="Analisei os dados gerais e a média de emissão da equipe é..."
+        example="Não existe uma melhor forma de diminuir sua emissão, e sim várias. Vamos começar identificando ..."
     )
     session_id: str = Field(
         ..., 
         description="O identificador da sessão, retornado para consistência.",
-        example="user_session_abc123"
+        example="session_test"
     )
 
 # =====================================
 # ENDPOINTS DA API
 # =====================================
 
-@app.get("/", tags=["Status"])
+@app.get("/", tags=["Root"], include_in_schema=False)
 def read_root():
     """
-    Endpoint de verificação de status.
-    Informa se a API da Gaia está online.
+    Redireciona automaticamente a raiz (/) para a documentação (/docs).
     """
-    return {"status": "Gaia API está online 🌿"}
+    return RedirectResponse(url="/docs")
 
 @app.post("/chat", response_model=ChatResponse, tags=["Chat"])
 async def handle_chat(request: ChatRequest):
@@ -84,7 +80,6 @@ async def handle_chat(request: ChatRequest):
     try:
         print(f"[API] Recebida requisição para session_id: {request.session_id}")
         
-        # Executa a lógica central do seu chatbot
         resposta_gaia = executar_fluxo_gaia(
             pergunta_usuario=request.question,
             session_id=request.session_id
@@ -98,11 +93,9 @@ async def handle_chat(request: ChatRequest):
         )
         
     except Exception as e:
-        # Log do erro no console do servidor
         print(f"[API ERRO] Erro crítico ao processar /chat para session_id {request.session_id}: {e}")
         traceback.print_exc()
         
-        # Retorna um erro 500 para o cliente
         raise HTTPException(
             status_code=500, 
             detail=f"Ocorreu um erro interno no servidor ao processar sua pergunta."
@@ -119,7 +112,6 @@ def get_chat_history_by_id(session_id: str):
     
     try:
         history = get_session_history(session_id)
-        # Converte mensagens para um formato JSON serializável
         messages = [msg.to_json() for msg in history.messages]
         return {"session_id": session_id, "messages": messages}
     except Exception as e:
