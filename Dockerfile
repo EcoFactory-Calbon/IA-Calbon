@@ -17,9 +17,14 @@ WORKDIR /home/app
 # DEPENDÊNCIAS DO SISTEMA
 # =====================================
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends build-essential gcc git curl && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    git \
+    curl \
+    postgresql-client \
+    libpq-dev && \
     rm -rf /var/lib/apt/lists/*
-
 # =====================================
 # COPIAR ARQUIVOS
 # =====================================
