@@ -42,14 +42,23 @@ RUN pip install --upgrade pip
 RUN pip install --upgrade pip
 
 # Se houver requirements.txt, instala, senão avisa
+# =====================================
+# INSTALAR DEPENDÊNCIAS PYTHON
+# =====================================
+RUN pip install --upgrade pip
+
 RUN if [ -f "requirements.txt" ]; then \
-        # Instala a partir do requirements E JÁ REMOVE o pacote conflitante
         pip install -r requirements.txt; \
     else \
-            echo "Aviso: Nenhum requirements.txt encontrado."; \
-            # Instala pacotes padrão E JÁ REMOVE o pacote conflitante
-            pip install fastapi uvicorn pymongo python-dotenv langchain langchain-core langchain-community pydantic; \
+        echo "Aviso: Nenhum requirements.txt encontrado."; \
+        pip install fastapi uvicorn pymongo python-dotenv langchain langchain-core langchain-community pydantic; \
     fi
+
+# ETAPA 2: Corrigir conflitos do LangChain
+# Garante que 'langchain-agents' (que tem create_tool_calling_agent) esteja instalado
+# E remove 'langchain-classic' que causa o conflito de importação.
+RUN pip install --upgrade langchain-agents && \
+    pip uninstall -y langchain-classic
 
 # =====================================
 # CONFIGURAÇÃO DE USUÁRIO
