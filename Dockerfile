@@ -34,10 +34,12 @@ COPY . .
 # =====================================
 # INSTALAR DEPENDÊNCIAS PYTHON
 # =====================================
+# =====================================
+# INSTALAR DEPENDÊNCIAS PYTHON
+# =====================================
 RUN pip install --upgrade pip
 
-# ETAPA 1: Instalar dependências do requirements ou fallback
-# Isso instalará 'langchain', 'langchain-agents' E o conflitante 'langchain-classic'
+# ETAPA 1: Instalar dependências (isso cria o conflito)
 RUN if [ -f "requirements.txt" ]; then \
         pip install -r requirements.txt; \
     else \
@@ -46,11 +48,11 @@ RUN if [ -f "requirements.txt" ]; then \
     fi
 
 # ETAPA 2: Corrigir o conflito de namespace do LangChain
-# Nós removemos o 'classic' E IMEDIATAMENTE forçamos a reinstalação do
-# 'langchain-agents' para consertar o diretório 'langchain/agents' que
-# foi corrompido pela desinstalação.
+# 1. Desinstala o 'classic' (que quebra o módulo 'agents')
+# 2. Força a reinstalação do 'langchain' (o principal) para 
+#    RESTAURAR o módulo 'agents' correto.
 RUN pip uninstall -y langchain-classic && \
-    pip install --upgrade --force-reinstall langchain-agents
+    pip install --upgrade --force-reinstall langchain
 
 # =====================================
 # CONFIGURAÇÃO DE USUÁRIO
