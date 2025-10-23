@@ -44,11 +44,11 @@ RUN pip install --upgrade pip
 # Se houver requirements.txt, instala, senão avisa
 RUN if [ -f "requirements.txt" ]; then \
         # Instala a partir do requirements E JÁ REMOVE o pacote conflitante
-        pip install -r requirements.txt && pip uninstall -y langchain-classic; \
+        pip install -r requirements.txt; \
     else \
             echo "Aviso: Nenhum requirements.txt encontrado."; \
             # Instala pacotes padrão E JÁ REMOVE o pacote conflitante
-            pip install fastapi uvicorn pymongo python-dotenv langchain langchain-core langchain-community pydantic && pip uninstall -y langchain-classic; \
+            pip install fastapi uvicorn pymongo python-dotenv langchain langchain-core langchain-community pydantic; \
     fi
 
 # =====================================
