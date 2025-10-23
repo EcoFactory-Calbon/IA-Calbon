@@ -25,6 +25,7 @@ RUN apt-get update && \
     postgresql-client \
     libpq-dev && \
     rm -rf /var/lib/apt/lists/*
+
 # =====================================
 # COPIAR ARQUIVOS
 # =====================================
@@ -35,18 +36,8 @@ COPY . .
 # =====================================
 RUN pip install --upgrade pip
 
-# Se houver requirements.txt, instala, senão avisa
-# =====================================
-# INSTALAR DEPENDÊNCIAS PYTHON
-# =====================================
-RUN pip install --upgrade pip
-
-# Se houver requirements.txt, instala, senão avisa
-# =====================================
-# INSTALAR DEPENDÊNCIAS PYTHON
-# =====================================
-RUN pip install --upgrade pip
-
+# ETAPA 1: Instalar dependências do requirements ou fallback
+# (Assumindo que 'langchain-agents' NÃO está no requirements.txt)
 RUN if [ -f "requirements.txt" ]; then \
         pip install -r requirements.txt; \
     else \
@@ -54,11 +45,10 @@ RUN if [ -f "requirements.txt" ]; then \
         pip install fastapi uvicorn pymongo python-dotenv langchain langchain-core langchain-community pydantic; \
     fi
 
-# ETAPA 2: Corrigir conflitos do LangChain
-# Garante que 'langchain-agents' (que tem create_tool_calling_agent) esteja instalado
-# E remove 'langchain-classic' que causa o conflito de importação.
-RUN pip install --upgrade langchain-agents && \
-    pip uninstall -y langchain-classic
+# ETAPA 2: Corrigir conflito de importação do LangChain
+# Apenas removemos o 'langchain-classic' que causa o erro.
+# O 'langchain-agents' já foi instalado como dependência do 'langchain' na ETAPA 1.
+RUN pip uninstall -y langchain-classic
 
 # =====================================
 # CONFIGURAÇÃO DE USUÁRIO
