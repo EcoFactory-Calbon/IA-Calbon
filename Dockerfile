@@ -37,7 +37,7 @@ COPY . .
 RUN pip install --upgrade pip
 
 # ETAPA 1: Instalar dependências do requirements ou fallback
-# (Assumindo que 'langchain-agents' NÃO está no requirements.txt)
+# Isso instalará 'langchain', 'langchain-agents' E o conflitante 'langchain-classic'
 RUN if [ -f "requirements.txt" ]; then \
         pip install -r requirements.txt; \
     else \
@@ -45,10 +45,12 @@ RUN if [ -f "requirements.txt" ]; then \
         pip install fastapi uvicorn pymongo python-dotenv langchain langchain-core langchain-community pydantic; \
     fi
 
-# ETAPA 2: Corrigir conflito de importação do LangChain
-# Apenas removemos o 'langchain-classic' que causa o erro.
-# O 'langchain-agents' já foi instalado como dependência do 'langchain' na ETAPA 1.
-RUN pip uninstall -y langchain-classic
+# ETAPA 2: Corrigir o conflito de namespace do LangChain
+# Nós removemos o 'classic' E IMEDIATAMENTE forçamos a reinstalação do
+# 'langchain-agents' para consertar o diretório 'langchain/agents' que
+# foi corrompido pela desinstalação.
+RUN pip uninstall -y langchain-classic && \
+    pip install --upgrade --force-reinstall langchain-agents
 
 # =====================================
 # CONFIGURAÇÃO DE USUÁRIO
