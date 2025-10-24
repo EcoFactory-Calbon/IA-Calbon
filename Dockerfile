@@ -49,8 +49,8 @@ RUN if [ -f "requirements.txt" ]; then \
 
 # ETAPA 2: Corrigir o conflito de namespace do LangChain
 # 1. Desinstala o 'classic' (que quebra o módulo 'agents')
-# 2. Força a reinstalação do 'langchain' (o principal) para 
-#    RESTAURAR o módulo 'agents' correto.
+# 2. Força a reinstalação do 'langchain' (o principal)
+# 3. Força a reinstalação do 'langchain_agents' para RESTAURAR o namespace.
 RUN pip uninstall -y langchain-classic && \
     pip install --upgrade --force-reinstall langchain
 
