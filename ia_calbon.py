@@ -6,9 +6,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, HumanMessagePromptTemplate, AIMessagePromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain.agents import create_tool_calling_agent
+from langchain.agents import AgentExecutor
 from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain.prompts.few_shot import FewShotChatMessagePromptTemplate
+from langchain_core.prompts import FewShotChatMessagePromptTemplate
 from tools import TOOLS
 from faq_tool import get_faq_context
 from operator import itemgetter

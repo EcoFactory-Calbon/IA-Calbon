@@ -8,8 +8,7 @@ try:
     from ia_calbon import executar_fluxo_gaia, get_session_history, store
 except ImportError as e:
     print("="*50)
-    print(f"ERRO: Falha ao importar 'ia.py'. Detalhe: {e}")
-    print("Certifique-se de que a modificação do 'if __name__ == \"__main__\":' foi feita.")
+    print(f"ERRO: Falha ao importar 'ia_calbon.py'. Detalhe: {e}")
     print("="*50)
     exit(1)
 
